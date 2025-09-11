@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: threadai
+      POSTGRES_USER: dbbbbbb
+      POSTGRES_PASSWORD: dbbbbpassword
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dbbbbbb -d threadai"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  bot:
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgresql://dbbbbbb:dbbbbpassword@postgres:5432/threadai
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+  admin_bot:
+    build: .
+    command: ["python", "admin_bot.py"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgresql://dbbbbbb:dbbbbpassword@postgres:5432/threadai
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

@@ -1,0 +1,6 @@
+aiogram>=3.0.0
+asyncpg
+python-dotenv
+google-genai
+stripe
+aiohttp
