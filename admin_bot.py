@@ -12,6 +12,7 @@ from aiogram.enums import ParseMode
 
 from config import Config
 from models.database import db
+from utils.logging_utils import main_bot as MAIN_BOT
 
 logging.basicConfig(level=logging.INFO)
 
@@ -163,7 +164,10 @@ async def admin_broadcast_text(message: types.Message, state: FSMContext):
         await state.clear()
         await message.reply("Отменено.", reply_markup=admin_menu_kb())
         return
-    text = message.text.strip()
+    text = (message.text or "").strip()
+    if not text:
+        await message.reply("Текст пуст. Введи сообщение для рассылки.")
+        return
     await state.update_data(broadcast_text=text)
     kb = types.InlineKeyboardMarkup(inline_keyboard=[
         [types.InlineKeyboardButton(text="✅ Разослать", callback_data="broadcast_confirm")],
@@ -185,19 +189,44 @@ async def admin_broadcast_confirm(callback: types.CallbackQuery, state: FSMConte
         await callback.answer("Нет доступа", show_alert=True)
         return
     data = await state.get_data()
-    text = data.get("broadcast_text", "")
+    text = (data.get("broadcast_text") or "").strip()
+    if not text:
+        await callback.answer("Текст пуст или сессия устарела. Начни заново.", show_alert=True)
+        return
     await state.clear()
     async with db.pool.acquire() as conn:
         users = await conn.fetch("SELECT user_id FROM users")
-    main_bot = Bot(token=Config.BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+
+    # Prefer reusing the main bot instance started in render_entry (so session is shared)
+    temp_bot: Bot | None = None
+    bot_to_use: Bot | None = MAIN_BOT
+    if bot_to_use is None:
+        # Fallback: create a temporary main bot client and make sure to close session afterwards
+        temp_bot = Bot(token=Config.BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+        bot_to_use = temp_bot
+
+    # Telegram text limit is ~4096; chunk if needed
+    def _chunks(s: str, n: int = 4000):
+        for i in range(0, len(s), n):
+            yield s[i:i+n]
+
     sent = 0
     for user in users:
         try:
-            await main_bot.send_message(user['user_id'], text)
+            for part in _chunks(text):
+                await bot_to_use.send_message(user['user_id'], part)
             sent += 1
         except Exception as e:
             logging.error(f"Failed to send to {user['user_id']}: {e}")
-    await callback.message.edit_text(f"Рассылка завершена. Отправлено: {sent}", reply_markup=admin_menu_kb())
+    try:
+        await callback.message.edit_text(f"Рассылка завершена. Отправлено: {sent}", reply_markup=admin_menu_kb())
+    finally:
+        if temp_bot is not None:
+            # Properly close temporary client session to avoid 'Unclosed client session'
+            try:
+                await temp_bot.session.close()
+            except Exception:
+                pass
 
 @router.message(Command("menu"))
 async def admin_menu_cmd(message: types.Message):
