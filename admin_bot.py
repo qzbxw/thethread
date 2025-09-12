@@ -15,8 +15,7 @@ from models.database import db
 
 logging.basicConfig(level=logging.INFO)
 
-bot = Bot(token=Config.ADMIN_BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
-dp = Dispatcher()
+# Define router at import time, but do not create Bot/Dispatcher here.
 router = Router()
 
 def is_admin(user_id: int) -> bool:
@@ -308,11 +307,28 @@ async def cmd_broadcast(message: types.Message):
     
     await message.reply("Рассылка завершена.")
 
-dp.include_router(router)
+def get_admin_router() -> Router:
+    """Expose admin router for reuse by other entrypoints."""
+    return router
 
 async def main():
     await db.connect()
-    await dp.start_polling(bot)
+    # Ensure tables exist in case admin worker starts before main service
+    try:
+        await db.create_tables()
+    except Exception:
+        pass
+    # Create bot/dispatcher only when running this module standalone
+    bot = Bot(token=Config.ADMIN_BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+    dp = Dispatcher()
+    dp.include_router(router)
+    try:
+        await dp.start_polling(bot)
+    finally:
+        try:
+            await db.disconnect()
+        except Exception:
+            pass
 
 if __name__ == "__main__":
     asyncio.run(main())
