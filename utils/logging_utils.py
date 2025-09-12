@@ -14,7 +14,7 @@ def _get_admin_bot() -> Bot | None:
     global _admin_bot
     if _admin_bot is None and Config.ADMIN_BOT_TOKEN:
         try:
-            
+            # Use default HTML for normal messages, but we'll explicitly set parse_mode=None for logs.
             _admin_bot = Bot(token=Config.ADMIN_BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
         except Exception:
             _admin_bot = Bot(token=Config.ADMIN_BOT_TOKEN)
@@ -45,12 +45,16 @@ def setup_logging_bridge(level=logging.WARNING):
 
 async def send_log_to_admins(text: str):
     admin_bot = _get_admin_bot()
+    # Ensure arbitrary log text doesn't break Telegram parsing by disabling parse mode.
+    # Also trim extremely long logs to a reasonable size.
+    MAX_LEN = 3500
+    safe_text = text if len(text) <= MAX_LEN else (text[:MAX_LEN] + "\n…(truncated)")
     if admin_bot:
         if not Config.ADMIN_IDS:
             logging.warning("[logging_utils] ADMIN_IDS пуст — некуда отправлять логи админ-ботом.")
         for admin_id in Config.ADMIN_IDS:
             try:
-                await admin_bot.send_message(admin_id, text)
+                await admin_bot.send_message(admin_id, safe_text, parse_mode=None)
             except Exception as e:
                 logging.error(f"Failed to send log via admin bot to {admin_id}: {e}")
         return
@@ -59,7 +63,7 @@ async def send_log_to_admins(text: str):
             logging.warning("[logging_utils] ADMIN_IDS пуст — некуда отправлять логи основным ботом.")
         for admin_id in Config.ADMIN_IDS:
             try:
-                await main_bot.send_message(admin_id, text)
+                await main_bot.send_message(admin_id, safe_text, parse_mode=None)
             except Exception as e:
                 logging.error(f"Failed to send log via main bot to {admin_id}: {e}")
     else:

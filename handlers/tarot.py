@@ -6,6 +6,8 @@ from aiogram.enums import ChatAction, ParseMode
 from aiogram.exceptions import TelegramBadRequest
 from datetime import datetime, timedelta
 import logging
+import re
+import html as _html
 
 from models.database import db
 from utils.tarot_utils import draw_cards
@@ -21,6 +23,33 @@ from utils.ui import (
 from utils.ui import set_active_kb
 
 router = Router()
+
+_BOLD_RE = re.compile(r"\*\*(.+?)\*\*")
+_ITALIC_RE = re.compile(r"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)")
+_CODE_RE = re.compile(r"`{1,3}([^`]+?)`{1,3}")
+
+def _md_to_safe_html(text: str) -> str:
+    """Very small, conservative markdown→HTML for Telegram HTML parse mode.
+    - Escapes all HTML first.
+    - **bold** -> <b>bold</b>
+    - *italic* -> <i>italic</i>
+    - `code` and triple backticks -> <code>…</code>
+    - Turns lines starting with '- ' into '• ' (plain text bullet)
+    Avoids nested/unbalanced constructs as much as possible.
+    """
+    if not text:
+        return text
+    s = _html.escape(text)
+    # bullets
+    s = re.sub(r"^\s*[-•]\s+", "• ", s, flags=re.MULTILINE)
+    # code first to protect asterisks inside
+    s = _CODE_RE.sub(lambda m: f"<code>{m.group(1)}</code>", s)
+    # bold then italic
+    s = _BOLD_RE.sub(lambda m: f"<b>{m.group(1)}</b>", s)
+    s = _ITALIC_RE.sub(lambda m: f"<i>{m.group(1)}</i>", s)
+    # collapse excessive newlines
+    s = re.sub(r"\n{3,}", "\n\n", s)
+    return s
 
 class TarotStates(StatesGroup):
     ask_question = State()
@@ -189,9 +218,9 @@ async def proceed_dialog(callback: types.CallbackQuery, state: FSMContext):
     sent = await callback.message.answer("Готовлю ответ…")
     ai_response = generate_ai_response(user_display_name, cards, question, history)
     try:
-        await sent.edit_text(ai_response, reply_markup=end_dialog_kb(), parse_mode=ParseMode.MARKDOWN)
+        await sent.edit_text(_md_to_safe_html(ai_response), reply_markup=end_dialog_kb(), parse_mode=ParseMode.HTML)
     except Exception:
-        sent = await callback.message.answer(ai_response, reply_markup=end_dialog_kb(), parse_mode=ParseMode.MARKDOWN)
+        sent = await callback.message.answer(_md_to_safe_html(ai_response), reply_markup=end_dialog_kb(), parse_mode=ParseMode.HTML)
     await set_active_kb(sent)
     try:
         await callback.message.edit_reply_markup(reply_markup=None)
@@ -240,10 +269,10 @@ async def handle_dialog(message: types.Message, state: FSMContext):
     
     placeholder = await message.answer("Готовлю ответ…")
     try:
-        await placeholder.edit_text(ai_response, reply_markup=end_dialog_kb(), parse_mode=ParseMode.MARKDOWN)
+        await placeholder.edit_text(_md_to_safe_html(ai_response), reply_markup=end_dialog_kb(), parse_mode=ParseMode.HTML)
         sent = placeholder
     except Exception:
-        sent = await message.answer(ai_response, reply_markup=end_dialog_kb(), parse_mode=ParseMode.MARKDOWN)
+        sent = await message.answer(_md_to_safe_html(ai_response), reply_markup=end_dialog_kb(), parse_mode=ParseMode.HTML)
     await set_active_kb(sent)
     await state.update_data(last_activity=now.isoformat())
 
