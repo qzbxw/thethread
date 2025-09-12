@@ -203,6 +203,43 @@ async def start_webhook_server():
     async def handle_health(request):
         return web.Response(text="ok")
     app.router.add_get('/healthz', handle_health)
+    async def handle_root(request):
+        cta_href = f"https://t.me/{Config.BOT_USERNAME}" if Config.BOT_USERNAME else None
+        html = f"""
+        <!doctype html>
+        <html lang=\"ru\">
+        <head>
+            <meta charset=\"utf-8\" />
+            <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
+            <title>Нить — сервис запущен</title>
+            <style>
+                :root {{ --bg:#0d1117; --card:#161b22; --text:#c9d1d9; --muted:#8b949e; --btn:#238636; --btnh:#2ea043; }}
+                body {{ margin:0; background:var(--bg); color:var(--text); font:16px/1.5 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica, Arial; display:flex; min-height:100vh; align-items:center; justify-content:center; }}
+                .card {{ background:var(--card); padding:28px 22px; border-radius:16px; max-width:620px; width:92%; box-shadow:0 10px 30px rgba(0,0,0,.35); border:1px solid #30363d; }}
+                h1 {{ margin:0 0 8px; font-size:22px; }}
+                p {{ margin:6px 0 0; color:var(--muted); }}
+                .cta {{ margin-top:18px; display:flex; gap:10px; flex-wrap:wrap; }}
+                a.btn {{ background:var(--btn); color:#fff; text-decoration:none; padding:10px 14px; border-radius:10px; font-weight:600; display:inline-flex; align-items:center; gap:8px; }}
+                a.btn:hover {{ background:var(--btnh); }}
+                code {{ background:#0b0f14; padding:2px 6px; border-radius:6px; border:1px solid #30363d; }}
+            </style>
+        </head>
+        <body>
+            <main class=\"card\">
+                <h1>Сервис Нить запущен ✅</h1>
+                <p>HTTP-сервер работает. Технические эндпоинты:</p>
+                <ul>
+                    <li><code>/healthz</code> — healthcheck</li>
+                    <li><code>/webhook</code> — Stripe webhook (POST)</li>
+                    <li><code>/success</code> и <code>/cancel</code> — страницы после оплаты</li>
+                </ul>
+                {f'<div class=\"cta\"><a class=\"btn\" href=\"{cta_href}\">Перейти в Telegram-бот</a></div>' if cta_href else ''}
+            </main>
+        </body>
+        </html>
+        """
+        return web.Response(text=html, content_type='text/html')
+    app.router.add_get('/', handle_root)
     runner = web.AppRunner(app)
     await runner.setup()
     import os
