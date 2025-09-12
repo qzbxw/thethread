@@ -21,6 +21,8 @@ class Config:
     STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY")
     STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET")
     PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "")
+    # For platforms like Vercel where API is under /api, set PUBLIC_BASE_PATH="/api"
+    PUBLIC_BASE_PATH = os.getenv("PUBLIC_BASE_PATH", "")
     
     # Admin IDs
     ADMIN_IDS = [int(id.strip()) for id in os.getenv("ADMIN_IDS", "").split(",") if id.strip()]

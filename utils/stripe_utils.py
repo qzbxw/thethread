@@ -15,7 +15,12 @@ def create_checkout_session(user_id, package, chat_id, message_id: int | None = 
     if package not in packages:
         raise ValueError("Invalid package")
 
-    base_url = Config.PUBLIC_BASE_URL.strip() or "http://localhost:8000"
+    # Support nested base path (e.g., Vercel /api)
+    base = (Config.PUBLIC_BASE_URL or "http://localhost:8000").rstrip("/")
+    path = (Config.PUBLIC_BASE_PATH or "").strip()
+    if path and not path.startswith("/"):
+        path = "/" + path
+    base_url = f"{base}{path}"
     try:
         session = stripe.checkout.Session.create(
             payment_method_types=['card'],

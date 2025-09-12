@@ -8,7 +8,7 @@ from aiogram.enums import ParseMode
 from config import Config
 from models.database import db
 from handlers import register_handlers
-from utils.logging_utils import set_main_bot
+from utils.logging_utils import set_main_bot, setup_logging_bridge
 from handlers.stripe_webhook import start_webhook_server
 
 logging.basicConfig(level=logging.INFO)
@@ -18,11 +18,15 @@ async def run():
     bot = Bot(token=Config.BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     dp = Dispatcher()
     set_main_bot(bot)
+    setup_logging_bridge(level=logging.WARNING)
 
     await db.connect()
     await db.create_tables()
 
     asyncio.create_task(start_webhook_server())
+
+    # Register all bot handlers so updates are processed
+    register_handlers(dp)
 
     try:
         await dp.start_polling(bot)
