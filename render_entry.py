@@ -24,7 +24,14 @@ async def run():
 
     asyncio.create_task(start_webhook_server())
 
-    await dp.start_polling(bot)
+    try:
+        await dp.start_polling(bot)
+    finally:
+        # Graceful shutdown: close DB pool to free connections
+        try:
+            await db.disconnect()
+        except Exception:
+            pass
 
 if __name__ == "__main__":
     asyncio.run(run())

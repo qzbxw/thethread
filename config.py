@@ -11,6 +11,8 @@ class Config:
     
     # Database
     DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://user:password@localhost:5432/threadai")
+    DB_POOL_MIN = int(os.getenv("DB_POOL_MIN", "1"))
+    DB_POOL_MAX = int(os.getenv("DB_POOL_MAX", "5"))
     
     # AI
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")

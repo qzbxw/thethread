@@ -6,7 +6,13 @@ class Database:
         self.pool = None
 
     async def connect(self):
-        self.pool = await asyncpg.create_pool(Config.DATABASE_URL)
+        # Limit pool size to avoid hitting managed Postgres connection caps (e.g., on Render)
+        self.pool = await asyncpg.create_pool(
+            dsn=Config.DATABASE_URL,
+            min_size=Config.DB_POOL_MIN,
+            max_size=Config.DB_POOL_MAX,
+            max_inactive_connection_lifetime=300,
+        )
 
     async def disconnect(self):
         if self.pool:
